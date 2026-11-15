@@ -4,9 +4,9 @@ Enforces football possession continuity:
 1. Absolute priority for dead ball ('D') frames.
 2. Strict reset across half-time boundaries (never carry possession from 1st to 2nd half).
 3. Forward-filling possession when the ball is loose, aerial, or occluded.
-4. Turnovers require sustained opponent control (>= 2 seconds, i.e., 50 frames at 25 fps).
+4. Turnovers require sustained opponent control (>= 2 seconds elapsed from first to latest contact).
 5. Retroactive boundary alignment to the opponent's initial contact upon turnover confirmation.
-6. Immediate possession reset following set pieces / restarts.
+6. Immediate possession assignment on restarts (from `restarts` dict or first live touch).
 """
 
 from typing import Dict, Optional, Sequence, Tuple
@@ -21,20 +21,20 @@ def two_second_rule(
     threshold_seconds: float = 2.0,
     half_time_range: Optional[Tuple[int, int]] = (90652, 110808),
 ) -> np.ndarray:
-    """Apply the 2-second control threshold to stabilize possession sequences.
+    """Apply the 2-second elapsed control threshold to stabilize possession sequences.
 
     Parameters
     ----------
     raw_labels : Sequence[Optional[str]]
-        Candidate team labels ('H', 'A', or '' / None) per video frame.
+        Candidate team labels ('H', 'A', or '' / None / np.nan) per video frame.
     dead_ball : Sequence[bool]
         Boolean array indicating whether the ball is dead ('D') for each frame.
     restarts : Optional[Dict[int, str]]
-        Mapping of frame index to team ('H' or 'A') for set-piece restarts.
+        Mapping of the first live frame after a dead ball to team ('H' or 'A').
     fps : int, default=25
         Video frame rate (anchor FPS).
     threshold_seconds : float, default=2.0
-        Minimum continuous contact duration required to validate a turnover.
+        Minimum elapsed duration between first and confirming opponent contact.
     half_time_range : Optional[Tuple[int, int]], default=(90652, 110808)
         Start and end video frames of the half-time break where state must reset.
 
@@ -52,7 +52,6 @@ def two_second_rule(
     # Tracking pending opponent challenge / turnover attempt
     candidate_opponent: Optional[str] = None
     opponent_first_contact: Optional[int] = None
-    consecutive_opponent_frames: int = 0
 
     for i in range(n_frames):
         # 0. Half-time barrier: never carry possession across halves
@@ -60,7 +59,6 @@ def two_second_rule(
             current_team = None
             candidate_opponent = None
             opponent_first_contact = None
-            consecutive_opponent_frames = 0
             labels[i] = "D"
             continue
 
@@ -69,20 +67,20 @@ def two_second_rule(
             labels[i] = "D"
             candidate_opponent = None
             opponent_first_contact = None
-            consecutive_opponent_frames = 0
             continue
 
-        # 2. Restart of play following a dead ball
+        # 2. Restart of play following a dead ball (indexed on first live frame i)
         if i > 0 and dead_ball[i - 1] and not dead_ball[i]:
             if restarts and i in restarts:
                 current_team = restarts[i]
+            else:
+                current_team = None
             candidate_opponent = None
             opponent_first_contact = None
-            consecutive_opponent_frames = 0
 
         contact = raw_labels[i]
 
-        # Initialisation on the first live contact of the half
+        # Initialisation on the first live contact of a half or unknown restart
         if current_team is None:
             if contact in ("H", "A"):
                 current_team = contact
@@ -98,18 +96,14 @@ def two_second_rule(
             if candidate_opponent != opponent:
                 candidate_opponent = opponent
                 opponent_first_contact = i
-                consecutive_opponent_frames = 1
-            else:
-                consecutive_opponent_frames += 1
 
-            # Threshold reached: turnover confirmed, backdate boundary
-            if consecutive_opponent_frames >= threshold_frames:
-                assert opponent_first_contact is not None
+            assert opponent_first_contact is not None
+            # Elapsed time >= 2s since first contact: turnover confirmed, backdate boundary
+            if i - opponent_first_contact + 1 >= threshold_frames:
                 labels[opponent_first_contact : i + 1] = opponent
                 current_team = opponent
                 candidate_opponent = None
                 opponent_first_contact = None
-                consecutive_opponent_frames = 0
             else:
                 # Under evaluation: maintain current team until threshold is met
                 labels[i] = current_team
@@ -118,10 +112,9 @@ def two_second_rule(
         elif contact == current_team:
             candidate_opponent = None
             opponent_first_contact = None
-            consecutive_opponent_frames = 0
             labels[i] = current_team
 
-        # 5. Loose ball / occluded / duel (empty candidate): persistence
+        # 5. Loose ball / occluded / NaN: persistence (timer keeps running if opponent pending)
         else:
             labels[i] = current_team
 
