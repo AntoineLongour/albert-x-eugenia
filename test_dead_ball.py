@@ -460,3 +460,25 @@ def test_dead_ball_detects_an_untagged_foul():
     x, y = placed_then_kicked(5, 3)                        # placed 0-4, kicked on 5, no tag
     dead = dead_ball(make_trk(x, y), [], min_stoppage=3, min_still=4)
     assert list(dead) == [F, T, T, T, T, F, F, F]
+
+def test_ball_lost_in_the_stands_stays_dead_until_the_throw():
+    #  0-1: in play | 2-3: out | 4-7: unseen (stands) | 8-10: new ball held behind the line | 11-12: thrown in
+    x = [40, 40, 40, 40, NAN, NAN, NAN, NAN, 40, 40, 40, 40, 40]
+    y = [30, 30, W + 1, W + 2, NAN, NAN, NAN, NAN, W + 0.3, W + 0.3, W + 0.3, W - 0.3, W - 0.9]
+    dead = dead_ball(make_trk(x, y), [], min_stoppage=3)
+    assert list(dead) == [F, F] + [T] * 9 + [F, F]
+  
+def test_new_ball_placed_inside_stays_dead_until_kicked():
+    # corner: out behind the goal line, unseen, new ball placed in the arc (inside), then kicked
+    x = [L - 5, L - 4, L + 1, NAN, NAN, L - 0.3, L - 0.3, L - 0.3, L - 0.9, L - 1.5]
+    y = [30, 30, 30, NAN, NAN, 0.3, 0.3, 0.3, 0.7, 1.1]
+    dead = dead_ball(make_trk(x, y), [], min_stoppage=3)
+    assert list(dead) == [F, F] + [T] * 6 + [F, F]
+  
+def test_ghost_out_for_one_frame_is_dropped():
+    # one frame wrongly seen out, then the ball is seen moving on the pitch again
+    x = 40 + 0.5 * np.arange(10); y = np.full(10, 30.0)
+    y[4] = W + 1.0
+    dead = dead_ball(make_trk(x, y), [], min_stoppage=3)
+    assert not dead.any()
+
