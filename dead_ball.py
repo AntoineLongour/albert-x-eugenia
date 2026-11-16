@@ -35,6 +35,22 @@ def runs(mask):
     d = np.diff(m)
     return list(zip(np.nonzero(d == 1)[0].tolist(), np.nonzero(d == -1)[0].tolist()))
 
+def hold_until_back_in_play(out, x, y, v):
+    """Rule A+: once the ball has been seen out, play stays stopped until the ball is seen
+    back INSIDE the pitch AND moving faster than RESTART_SPEED (a kick or a throw).
+    Covers a ball lost in the stands, a new ball from a ball boy, a ball carried to the spot."""
+    seen = ~np.isnan(x) & ~np.isnan(y)
+    with np.errstate(invalid="ignore"):
+        back_in_play = seen & ~out & (v > RESTART_SPEED)   # NaN speed -> False
+    held = out.copy()
+    stopped = False
+    for i in range(len(out)):
+        if out[i]:
+            stopped = True
+        elif stopped and back_in_play[i]:
+            stopped = False
+        held[i] = stopped
+    return held
 
 def still_ball_stoppages(v, duration):
     """Rule E: True on every run of at least `duration` frames where the ball is SEEN still.
@@ -144,14 +160,12 @@ def dead_ball(trk, tags, second_half_start=None, min_stoppage=MIN_STOPPAGE,
         second_half_start = half_start(2)
     v = ball_speed(x, y)
 
-    # Rule C: waiting for the second-half kickoff, found in the data
     waiting = before_kickoff(n, second_half_start, find_kickoff(tags, v, n, "2nd Half"))
 
-    # Rules A + B + C + E: a frame is dead if at least one rule says so
-    dead = (out_of_pitch(x, y, length, width)       # A: ball out of the pitch
-            | set_piece_dead(x, y, tags, n)          # B: tagged set pieces
-            | waiting                                # C: waiting for the kickoff
-            | still_ball_stoppages(v, min_still))    # E: untagged fouls and offsides
-
-    # Rule D: drop stoppages that are too short, AFTER merging, never touching the kickoff wait
+    out = hold_until_back_in_play(out_of_pitch(x, y, length, width), x, y, v)
+    dead = (out                                      
+            | set_piece_dead(x, y, tags, n)          
+            | waiting                                
+            | still_ball_stoppages(v, min_still))    
+                  
     return drop_short_runs(dead, min_stoppage, protect=waiting)
