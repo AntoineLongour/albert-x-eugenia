@@ -17,7 +17,7 @@ python evaluation/validate_submission.py "Albert x Eugenia.csv"
 The match data is **not** in this repository: put it in `data/` as described in
 [DATA.md](DATA.md), or point the `MTAH_DATA_DIR` environment variable to the folder that holds it.
 Same data + same code gives a byte-identical file. SHA-256 of the file we submitted:
-`TO_FILL_IN`
+e9636df12501175c713fd3fd048ff8d5b62f1b17fe0df566051bd11486df3b8a
 
 | file | what it does |
 |---|---|
