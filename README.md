@@ -1,3 +1,37 @@
+# Albert x Eugenia — our submission
+
+This repository is our team's fork of the challenge repository. Everything below the line is the
+organisers' original README. Our method, rules and parameters are explained in the technical
+document submitted with the form (`Albert x Eugenia.pdf`).
+
+**Reproduce our file** (Python 3.11):
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate            # Windows  (macOS / Linux: source .venv/bin/activate)
+pip install -r requirements-albert.txt
+python main.py                     # writes "Albert x Eugenia.csv" and prints its SHA-256
+python evaluation/validate_submission.py "Albert x Eugenia.csv"
+```
+
+The match data is **not** in this repository: put it in `data/` as described in
+[DATA.md](DATA.md), or point the `MTAH_DATA_DIR` environment variable to the folder that holds it.
+Same data + same code gives a byte-identical file. SHA-256 of the file we submitted:
+`TO_FILL_IN`
+
+| file | what it does |
+|---|---|
+| `main.py` | runs the whole pipeline and writes the CSV |
+| `src/contact.py` | who touches the ball on each frame: a player within 1 m, ball slower than 10 m/s, duels → nobody |
+| `src/dead_ball.py` | is play stopped: ball out (until it is back in play), tagged set pieces, waiting for kickoff, ball still for 3 s |
+| `src/possession.py` | 2-second rule: possession only changes after 2 s of opponent control, dated back to its first touch |
+| `tests/` | unit tests on invented data only — `python -m pytest tests` |
+
+No labelled data was used: the method is rule-based and every parameter is justified by the
+definition of possession or by the Laws of the Game, never tuned on the ground truth.
+
+---
+
 # More than a Hack 2027 — Phase 1: Ball Possession
 
 **Organised by [Metrica Sports](https://metrica-sports.com), [FC Barcelona](https://www.fcbarcelona.com)
